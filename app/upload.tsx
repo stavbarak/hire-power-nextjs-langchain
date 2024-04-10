@@ -1,7 +1,6 @@
 "use server";
 
 import fs from "fs/promises";
-import pdf from "@cyber2024/pdf-parse-fixed";
 import path from "path";
 
 export async function upload(formData: FormData) {

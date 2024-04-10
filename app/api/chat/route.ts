@@ -40,11 +40,13 @@ const CONDENSE_QUESTION_TEMPLATE = `Given the following conversation and a follo
 Follow Up Input: {question}
 Standalone question:`;
 const condenseQuestionPrompt = PromptTemplate.fromTemplate(
-  CONDENSE_QUESTION_TEMPLATE,
+  CONDENSE_QUESTION_TEMPLATE
 );
 
 const ANSWER_TEMPLATE = `
-Answer the question based only on the following context and chat history:
+You are an assistant helping to hire a candidate. 
+You are given a bunch of resumes and you need to
+answer the question based only on the following context and chat history:
 <context>
   {context}
 </context>
@@ -64,15 +66,17 @@ const answerPrompt = PromptTemplate.fromTemplate(ANSWER_TEMPLATE);
  * https://js.langchain.com/docs/guides/expression_language/cookbook#conversational-retrieval-chain
  */
 export async function POST(req: NextRequest) {
-  
   try {
-    const pdfFile = await fs.readFile(path.join(process.cwd(), "app/cvs", "fakeCv1.pdf"));
+    const pdfFile = await fs.readFile(
+      path.join(process.cwd(), "app/cvs", "fakeCv1.pdf")
+    );
     const parsedPdf = await pdf(pdfFile);
-  
+
     const vectorStore = await MemoryVectorStore.fromDocuments(
-      [{pageContent: parsedPdf.text, metadata: parsedPdf.metadata}], new OpenAIEmbeddings(),
-    )
-  
+      [{ pageContent: parsedPdf.text, metadata: parsedPdf.metadata }],
+      new OpenAIEmbeddings()
+    );
+
     const body = await req.json();
     const messages = body.messages ?? [];
     const previousMessages = messages.slice(0, -1);
@@ -139,7 +143,7 @@ export async function POST(req: NextRequest) {
       chat_history: formatVercelMessages(previousMessages),
     });
 
-    return new StreamingTextResponse(stream)
+    return new StreamingTextResponse(stream);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });
   }
