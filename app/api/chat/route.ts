@@ -1,123 +1,146 @@
-import { StreamingTextResponse, LangChainStream, Message } from "ai";
-import {
-  ChatOpenAI,
-  ChatOpenAICallOptions,
-} from "langchain/chat_models/openai";
-import { AIMessage, HumanMessage, SystemMessage } from "langchain/schema";
-import { OpenAIEmbeddings } from "langchain/embeddings/openai";
-import { PromptTemplate } from "langchain/prompts";
-import {
-  RunnableSequence,
-  RunnablePassthrough,
-} from "langchain/schema/runnable";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { NextRequest, NextResponse } from "next/server";
+import { Message as VercelChatMessage, StreamingTextResponse } from "ai";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { PromptTemplate } from "@langchain/core/prompts";
+import { Document } from "@langchain/core/documents";
+import { RunnableSequence } from "@langchain/core/runnables";
 import {
   BytesOutputParser,
   StringOutputParser,
-} from "langchain/schema/output_parser";
-import { RetrievalQAChain, loadQAStuffChain } from "langchain/chains";
-import fs from "fs";
+} from "@langchain/core/output_parsers";
+import fs from "fs/promises";
 import pdf from "@cyber2024/pdf-parse-fixed";
 import path from "path";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
 
-export const runtime = "edge";
+const combineDocumentsFn = (docs: Document[]) => {
+  const serializedDocs = docs.map((doc) => doc.pageContent);
+  return serializedDocs.join("\n\n");
+};
 
-// const filePath = path.join(__dirname, "../../../app/cvs", "fakeCv1.pdf");
-// const buffer = fs.readFileSync(filePath);
-
-// const getChain = async () => {
-//   const llm = new ChatOpenAI({
-//     streaming: true,
-//     temperature: 0
-//   });
-
-//   const filePath = path.join(__dirname, "../../../app/cvs", "fakeCv1.pdf");
-
-//   const buffer = fs.readFileSync(filePath);
-//   const parsedPdf = await pdf(buffer);
-
-//   const vectorStore = await MemoryVectorStore.fromDocuments(
-//     [{pageContent: parsedPdf.text, metadata: parsedPdf.metadata}], new OpenAIEmbeddings(),
-//   )
-
-//   const chain = new RetrievalQAChain({
-//     combineDocumentsChain: loadQAStuffChain(llm,{}),
-//     retriever: vectorStore.asRetriever(1),
-//     returnSourceDocuments: true
-//   })
-
-//   return chain;
-
-// }
-
-export async function POST(req: Request) {
-  const { messages } = await req.json();
-
-  const { stream, handlers } = LangChainStream();
-
-  const llm = new ChatOpenAI({
-    streaming: true,
-    temperature: 0,
+const formatVercelMessages = (chatHistory: VercelChatMessage[]) => {
+  const formattedDialogueTurns = chatHistory.map((message) => {
+    if (message.role === "user") {
+      return `Human: ${message.content}`;
+    } else if (message.role === "assistant") {
+      return `Assistant: ${message.content}`;
+    } else {
+      return `${message.role}: ${message.content}`;
+    }
   });
+  return formattedDialogueTurns.join("\n");
+};
 
-  // const vectorStore = await MemoryVectorStore.fromDocuments(
-  //   [{pageContent: parsedPdf.text, metadata: parsedPdf.metadata}], new OpenAIEmbeddings(),
-  // )
+const CONDENSE_QUESTION_TEMPLATE = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.
 
-  // const chain = new RetrievalQAChain({
-  //   combineDocumentsChain: loadQAStuffChain(llm,{}),
-  //   retriever: vectorStore.asRetriever(1),
-  //   returnSourceDocuments: true
-  // })
+<chat_history>
+  {chat_history}
+</chat_history>
 
-  const vectorStore = await MemoryVectorStore.fromTexts(
-    [
-      "Pie is the powerhouse of the cell",
-      "lysosomes are the garbage disposal of the cell",
-      "the nucleus is the control center of the cell",
-    ],
-    [{ id: 1 }, { id: 2 }, { id: 3 }],
-    new OpenAIEmbeddings()
-  );
+Follow Up Input: {question}
+Standalone question:`;
+const condenseQuestionPrompt = PromptTemplate.fromTemplate(
+  CONDENSE_QUESTION_TEMPLATE,
+);
 
-  const retriever = vectorStore.asRetriever();
+const ANSWER_TEMPLATE = `
+Answer the question based only on the following context and chat history:
+<context>
+  {context}
+</context>
 
-  // const prompt =
-  // PromptTemplate.fromTemplate(`Answer the question based only on the following context:
-  // {context}
+<chat_history>
+  {chat_history}
+</chat_history>
 
-  // Question: {question}`);
+Question: {question}
+`;
+const answerPrompt = PromptTemplate.fromTemplate(ANSWER_TEMPLATE);
 
-  const serializeDocs = (docs: any) =>
-    docs.map((doc: any) => doc.pageContent).join("\n");
+/**
+ * This handler initializes and calls a retrieval chain. It composes the chain using
+ * LangChain Expression Language. See the docs for more information:
+ *
+ * https://js.langchain.com/docs/guides/expression_language/cookbook#conversational-retrieval-chain
+ */
+export async function POST(req: NextRequest) {
+  
+  try {
+    const pdfFile = await fs.readFile(path.join(process.cwd(), "app/cvs", "fakeCv1.pdf"));
+    const parsedPdf = await pdf(pdfFile);
+  
+    const vectorStore = await MemoryVectorStore.fromDocuments(
+      [{pageContent: parsedPdf.text, metadata: parsedPdf.metadata}], new OpenAIEmbeddings(),
+    )
+  
+    const body = await req.json();
+    const messages = body.messages ?? [];
+    const previousMessages = messages.slice(0, -1);
+    const currentMessageContent = messages[messages.length - 1].content;
 
-  const chain = RunnableSequence.from([
-    {
-      context: retriever.pipe(serializeDocs),
-      question: new RunnablePassthrough(),
-    },
-    {},
-    llm,
-    retriever,
-    new StringOutputParser(),
-  ]);
+    const model = new ChatOpenAI({
+      modelName: "gpt-3.5-turbo-1106",
+      temperature: 0.2,
+    });
 
-  // const result = await chain.invoke("What is the powerhouse of the cell?");
+    /**
+     * We use LangChain Expression Language to compose two chains.
+     * To learn more, see the guide here:
+     *
+     * https://js.langchain.com/docs/guides/expression_language/cookbook
+     *
+     * You can also use the "createRetrievalChain" method with a
+     * "historyAwareRetriever" to get something prebaked.
+     */
+    const standaloneQuestionChain = RunnableSequence.from([
+      condenseQuestionPrompt,
+      model,
+      new StringOutputParser(),
+    ]);
 
-  // console.log(result);
+    let resolveWithDocuments: (value: Document[]) => void;
 
-  // const matchingNodes = await retriever.invoke(
+    const retriever = vectorStore.asRetriever({
+      callbacks: [
+        {
+          handleRetrieverEnd(documents) {
+            resolveWithDocuments(documents);
+          },
+        },
+      ],
+    });
 
-  // "What is the powerhouse of the cell?"
-  // );
+    const retrievalChain = retriever.pipe(combineDocumentsFn);
 
-  const engineeredMessages = messages.map((m: Message) =>
-    m.role == "user" ? new HumanMessage(m.content) : new AIMessage(m.content)
-  );
+    const answerChain = RunnableSequence.from([
+      {
+        context: RunnableSequence.from([
+          (input) => input.question,
+          retrievalChain,
+        ]),
+        chat_history: (input) => input.chat_history,
+        question: (input) => input.question,
+      },
+      answerPrompt,
+      model,
+    ]);
 
-  // engineeredMessages.unshift(cellContextMessage);
+    const conversationalRetrievalQAChain = RunnableSequence.from([
+      {
+        question: standaloneQuestionChain,
+        chat_history: (input) => input.chat_history,
+      },
+      answerChain,
+      new BytesOutputParser(),
+    ]);
 
-  llm.call(engineeredMessages, {}, [handlers]).catch(console.error);
+    const stream = await conversationalRetrievalQAChain.stream({
+      question: currentMessageContent,
+      chat_history: formatVercelMessages(previousMessages),
+    });
 
-  return new StreamingTextResponse(stream);
+    return new StreamingTextResponse(stream)
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });
+  }
 }
