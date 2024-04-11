@@ -67,12 +67,6 @@ const answerPrompt = PromptTemplate.fromTemplate(ANSWER_TEMPLATE);
  */
 export async function POST(req: NextRequest) {
   try {
-    // const pdfFile = await fs.readFile(
-    //   path.join(process.cwd(), "app/cvs", "fakeCv1.pdf")
-    // );
-    //
-    // const parsedPdf = await pdf(pdfFile);
-
     const directoryPath = path.join(process.cwd(), "app/cvs");
 
     // Read the directory
