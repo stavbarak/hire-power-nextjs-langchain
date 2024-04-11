@@ -1,10 +1,7 @@
 "use client";
 
 import React from "react";
-import { useChat } from "ai/react";
-import { VectorStoreRetriever } from "langchain/dist/vectorstores/base";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import { RetrievalQAChain } from "langchain/chains";
+import {useChat} from "ai/react";
 
 export default function Chat() {
   const { messages, input, handleInputChange, handleSubmit } = useChat();
