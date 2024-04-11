@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { Message as VercelChatMessage, StreamingTextResponse } from "ai";
-import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
-import { PromptTemplate } from "@langchain/core/prompts";
-import { Document } from "@langchain/core/documents";
-import { RunnableSequence } from "@langchain/core/runnables";
+import {NextRequest, NextResponse} from "next/server";
+import {Message as VercelChatMessage, StreamingTextResponse} from "ai";
+import {ChatOpenAI, OpenAIEmbeddings} from "@langchain/openai";
+import {PromptTemplate} from "@langchain/core/prompts";
+import {Document} from "@langchain/core/documents";
+import {RunnableSequence} from "@langchain/core/runnables";
 import {
   BytesOutputParser,
   StringOutputParser,
@@ -11,7 +11,7 @@ import {
 import fs from "fs/promises";
 import pdf from "@cyber2024/pdf-parse-fixed";
 import path from "path";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import {MemoryVectorStore} from "langchain/vectorstores/memory";
 
 const combineDocumentsFn = (docs: Document[]) => {
   const serializedDocs = docs.map((doc) => doc.pageContent);
@@ -40,7 +40,7 @@ const CONDENSE_QUESTION_TEMPLATE = `Given the following conversation and a follo
 Follow Up Input: {question}
 Standalone question:`;
 const condenseQuestionPrompt = PromptTemplate.fromTemplate(
-  CONDENSE_QUESTION_TEMPLATE
+    CONDENSE_QUESTION_TEMPLATE
 );
 
 const ANSWER_TEMPLATE = `
@@ -67,15 +67,33 @@ const answerPrompt = PromptTemplate.fromTemplate(ANSWER_TEMPLATE);
  */
 export async function POST(req: NextRequest) {
   try {
-    const pdfFile = await fs.readFile(
-      path.join(process.cwd(), "app/cvs", "fakeCv1.pdf")
-    );
+    // const pdfFile = await fs.readFile(
+    //   path.join(process.cwd(), "app/cvs", "fakeCv1.pdf")
+    // );
+    //
+    // const parsedPdf = await pdf(pdfFile);
 
-    const parsedPdf = await pdf(pdfFile);
+    const directoryPath = path.join(process.cwd(), "app/cvs");
+
+    // Read the directory
+    const files = await fs.readdir(directoryPath);
+
+    // Read and parse all PDF files in the directory
+    const parsedPdfs = await Promise.all(files.map(async (file) => {
+      const filePath = path.join(directoryPath, file);
+      const pdfFile = await fs.readFile(filePath);
+      const parsedPdf = await pdf(pdfFile);
+      return parsedPdf;
+    }));
+
+    const mappedPdfs = parsedPdfs.map(parsedPdf => ({
+      pageContent: parsedPdf.text,
+      metadata: parsedPdf.metadata
+    }));
 
     const vectorStore = await MemoryVectorStore.fromDocuments(
-      [{ pageContent: parsedPdf.text, metadata: parsedPdf.metadata }],
-      new OpenAIEmbeddings()
+        mappedPdfs,
+        new OpenAIEmbeddings()
     );
 
     const body = await req.json();
@@ -146,6 +164,6 @@ export async function POST(req: NextRequest) {
 
     return new StreamingTextResponse(stream);
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });
+    return NextResponse.json({error: e.message}, {status: e.status ?? 500});
   }
 }
