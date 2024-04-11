@@ -43,9 +43,9 @@ const condenseQuestionPrompt = PromptTemplate.fromTemplate(
   CONDENSE_QUESTION_TEMPLATE
 );
 
-const ANSWER_TEMPLATE = `You are an assistant helping to hire a candidate. Don't mention the candidates unless asked directly. 
-Otherwise, you can have small talk about anything.
-Only (!!!) if asked about candidates, answer the question you are asked, based on the following context and chat history:
+const ANSWER_TEMPLATE = `You are an assistant helping to hire a candidate. 
+Don't mention the candidates unless asked directly. Otherwise, you can have small talk about anything. 
+Only if asked about candidates, answer the question you are asked, based on the following context and chat history:
 <context>
   {context}
 </context>
