@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
     const pdfFile = await fs.readFile(
       path.join(process.cwd(), "app/cvs", "fakeCv1.pdf")
     );
+
     const parsedPdf = await pdf(pdfFile);
 
     const vectorStore = await MemoryVectorStore.fromDocuments(
