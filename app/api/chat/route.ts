@@ -1,9 +1,9 @@
-import {NextRequest, NextResponse} from "next/server";
-import {Message as VercelChatMessage, StreamingTextResponse} from "ai";
-import {ChatOpenAI, OpenAIEmbeddings} from "@langchain/openai";
-import {PromptTemplate} from "@langchain/core/prompts";
-import {Document} from "@langchain/core/documents";
-import {RunnableSequence} from "@langchain/core/runnables";
+import { NextRequest, NextResponse } from "next/server";
+import { Message as VercelChatMessage, StreamingTextResponse } from "ai";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { PromptTemplate } from "@langchain/core/prompts";
+import { Document } from "@langchain/core/documents";
+import { RunnableSequence } from "@langchain/core/runnables";
 import {
   BytesOutputParser,
   StringOutputParser,
@@ -11,7 +11,7 @@ import {
 import fs from "fs/promises";
 import pdf from "@cyber2024/pdf-parse-fixed";
 import path from "path";
-import {MemoryVectorStore} from "langchain/vectorstores/memory";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
 
 const combineDocumentsFn = (docs: Document[]) => {
   const serializedDocs = docs.map((doc) => doc.pageContent);
@@ -40,13 +40,12 @@ const CONDENSE_QUESTION_TEMPLATE = `Given the following conversation and a follo
 Follow Up Input: {question}
 Standalone question:`;
 const condenseQuestionPrompt = PromptTemplate.fromTemplate(
-    CONDENSE_QUESTION_TEMPLATE
+  CONDENSE_QUESTION_TEMPLATE
 );
 
-const ANSWER_TEMPLATE = `
-You are an assistant helping to hire a candidate. 
-You are given a bunch of resumes and you need to
-answer the question based only on the following context and chat history:
+const ANSWER_TEMPLATE = `You are an assistant helping to hire a candidate. Don't mention the candidates unless asked directly. 
+Otherwise, you can have small talk about anything.
+Only (!!!) if asked about candidates, answer the question you are asked, based on the following context and chat history:
 <context>
   {context}
 </context>
@@ -56,7 +55,9 @@ answer the question based only on the following context and chat history:
 </chat_history>
 
 Question: {question}
+
 `;
+
 const answerPrompt = PromptTemplate.fromTemplate(ANSWER_TEMPLATE);
 
 /**
@@ -73,21 +74,23 @@ export async function POST(req: NextRequest) {
     const files = await fs.readdir(directoryPath);
 
     // Read and parse all PDF files in the directory
-    const parsedPdfs = await Promise.all(files.map(async (file) => {
-      const filePath = path.join(directoryPath, file);
-      const pdfFile = await fs.readFile(filePath);
-      const parsedPdf = await pdf(pdfFile);
-      return parsedPdf;
-    }));
+    const parsedPdfs = await Promise.all(
+      files.map(async (file) => {
+        const filePath = path.join(directoryPath, file);
+        const pdfFile = await fs.readFile(filePath);
+        const parsedPdf = await pdf(pdfFile);
+        return parsedPdf;
+      })
+    );
 
-    const mappedPdfs = parsedPdfs.map(parsedPdf => ({
+    const mappedPdfs = parsedPdfs.map((parsedPdf) => ({
       pageContent: parsedPdf.text,
-      metadata: parsedPdf.metadata
+      metadata: parsedPdf.metadata,
     }));
 
     const vectorStore = await MemoryVectorStore.fromDocuments(
-        mappedPdfs,
-        new OpenAIEmbeddings()
+      mappedPdfs,
+      new OpenAIEmbeddings()
     );
 
     const body = await req.json();
@@ -97,7 +100,7 @@ export async function POST(req: NextRequest) {
 
     const model = new ChatOpenAI({
       modelName: "gpt-3.5-turbo-1106",
-      temperature: 0.2,
+      temperature: 0,
     });
 
     /**
@@ -158,6 +161,6 @@ export async function POST(req: NextRequest) {
 
     return new StreamingTextResponse(stream);
   } catch (e: any) {
-    return NextResponse.json({error: e.message}, {status: e.status ?? 500});
+    return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });
   }
 }
