@@ -10,9 +10,9 @@ export default function Chat() {
     <div className="mx-auto w-full max-w-md py-24 flex flex-col stretch">
       {messages.length > 0
         ? messages.map((m) => (
-            <div key={m.id} className="whitespace-pre-wrap">
+            <div key={m.id} className="whitespace-pre-wrap p-2">
               {m.role === "user" ? "User: " : "AI: "}
-              {m.content}
+              <div className={`p-2 rounded ${m.role === "user" ? 'bg-red-200': 'bg-slate-200'}`}>{m.content}</div>
             </div>
           ))
         : null}

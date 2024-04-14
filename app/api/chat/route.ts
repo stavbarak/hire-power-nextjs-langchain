@@ -13,11 +13,13 @@ import pdf from "@cyber2024/pdf-parse-fixed";
 import path from "path";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 
+// combine documents into a single string
 const combineDocumentsFn = (docs: Document[]) => {
   const serializedDocs = docs.map((doc) => doc.pageContent);
   return serializedDocs.join("\n\n");
 };
 
+// format chat history into a human-readable format
 const formatVercelMessages = (chatHistory: VercelChatMessage[]) => {
   const formattedDialogueTurns = chatHistory.map((message) => {
     if (message.role === "user") {
@@ -44,7 +46,7 @@ const condenseQuestionPrompt = PromptTemplate.fromTemplate(
 );
 
 const ANSWER_TEMPLATE = `You are an assistant helping to hire a candidate. 
-Don't mention the candidates unless asked directly. Otherwise, you can have small talk about anything. 
+If the user says hello, you should say hello back. You can have a small talk about anything.
 Only if asked about candidates, answer the question you are asked, based on the following context and chat history:
 <context>
   {context}
@@ -93,11 +95,15 @@ export async function POST(req: NextRequest) {
       new OpenAIEmbeddings()
     );
 
+    // The body of the POST request should contain the messages in the chat. 
+    // The last message in the array is the current message.
+    // The previous messages are used to provide context to the AI model.
     const body = await req.json();
     const messages = body.messages ?? [];
     const previousMessages = messages.slice(0, -1);
     const currentMessageContent = messages[messages.length - 1].content;
 
+    // Initialize the OpenAI model
     const model = new ChatOpenAI({
       modelName: "gpt-3.5-turbo-1106",
       temperature: 0,
@@ -112,6 +118,8 @@ export async function POST(req: NextRequest) {
      * You can also use the "createRetrievalChain" method with a
      * "historyAwareRetriever" to get something prebaked.
      */
+
+    // This chain takes the current question, condenses it into a standalone question, and then uses the model to generate a response.
     const standaloneQuestionChain = RunnableSequence.from([
       condenseQuestionPrompt,
       model,
@@ -130,8 +138,11 @@ export async function POST(req: NextRequest) {
       ],
     });
 
+    // This chain uses the vector store to retrieve relevant documents based on the current question.
     const retrievalChain = retriever.pipe(combineDocumentsFn);
 
+    // This chain combines the context (retrieved documents and chat history) and the current question, 
+    // then uses the model to generate an answer.
     const answerChain = RunnableSequence.from([
       {
         context: RunnableSequence.from([
@@ -145,6 +156,8 @@ export async function POST(req: NextRequest) {
       model,
     ]);
 
+    // This chain combines the standalone question chain and the answer chain to process the question 
+    // and generate an answer based on the conversation history and the PDF content.
     const conversationalRetrievalQAChain = RunnableSequence.from([
       {
         question: standaloneQuestionChain,
@@ -154,11 +167,12 @@ export async function POST(req: NextRequest) {
       new BytesOutputParser(),
     ]);
 
+    // The function executes the conversational retrieval QA chain with the current question and formatted chat history. 
     const stream = await conversationalRetrievalQAChain.stream({
       question: currentMessageContent,
       chat_history: formatVercelMessages(previousMessages),
     });
-
+     // It streams the response back to the client using StreamingTextResponse
     return new StreamingTextResponse(stream);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });
