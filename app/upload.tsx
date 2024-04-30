@@ -11,6 +11,10 @@ import path from "path";
 export async function upload(formData: FormData) {
   const file = formData.get("file") as File;
 
+  if (file.size === 0) {
+    return;
+  }
+
   const buffer = await file.arrayBuffer();
 
   await fs.writeFile(

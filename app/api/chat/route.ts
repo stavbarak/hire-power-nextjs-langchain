@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
       new OpenAIEmbeddings()
     );
 
-    // The body of the POST request should contain the messages in the chat. 
+    // The body of the POST request should contain the messages in the chat.
     // The last message in the array is the current message.
     // The previous messages are used to provide context to the AI model.
     const body = await req.json();
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
     // This chain uses the vector store to retrieve relevant documents based on the current question.
     const retrievalChain = retriever.pipe(combineDocumentsFn);
 
-    // This chain combines the context (retrieved documents and chat history) and the current question, 
+    // This chain combines the context (retrieved documents and chat history) and the current question,
     // then uses the model to generate an answer.
     const answerChain = RunnableSequence.from([
       {
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
       model,
     ]);
 
-    // This chain combines the standalone question chain and the answer chain to process the question 
+    // This chain combines the standalone question chain and the answer chain to process the question
     // and generate an answer based on the conversation history and the PDF content.
     const conversationalRetrievalQAChain = RunnableSequence.from([
       {
@@ -167,12 +167,12 @@ export async function POST(req: NextRequest) {
       new BytesOutputParser(),
     ]);
 
-    // The function executes the conversational retrieval QA chain with the current question and formatted chat history. 
+    // The function executes the conversational retrieval QA chain with the current question and formatted chat history.
     const stream = await conversationalRetrievalQAChain.stream({
       question: currentMessageContent,
       chat_history: formatVercelMessages(previousMessages),
     });
-     // It streams the response back to the client using StreamingTextResponse
+    // It streams the response back to the client using StreamingTextResponse
     return new StreamingTextResponse(stream);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });
