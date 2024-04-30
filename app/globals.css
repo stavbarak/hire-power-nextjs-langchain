@@ -6,7 +6,7 @@
 .form-container {
     height: 63px;
     display: flex;
-    justify-content: center;
+    justify-content: space-around;
     align-items: center;
     box-shadow: 3px 11px 13px -3px rgba(0,0,0,0.16);
 }

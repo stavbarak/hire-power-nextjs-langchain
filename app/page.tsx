@@ -29,6 +29,7 @@ export default function Home() {
             Upload
           </button>
         </form>
+        <div>stavb@tikalk.com</div>
       </div>
       <Chat />
     </div>
