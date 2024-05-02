@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import {useChat} from "ai/react";
+import { useChat } from "ai/react";
 
 export default function Chat() {
   const { messages, input, handleInputChange, handleSubmit } = useChat();
@@ -11,8 +11,14 @@ export default function Chat() {
       {messages.length > 0
         ? messages.map((m) => (
             <div key={m.id} className="whitespace-pre-wrap p-2">
-              {m.role === "user" ? "User: " : "AI: "}
-              <div className={`p-2 rounded ${m.role === "user" ? 'bg-red-200': 'bg-slate-200'}`}>{m.content}</div>
+              {m.role === "user" ? "User: " : "Hire Power Master: "}
+              <div
+                className={`p-2 rounded ${
+                  m.role === "user" ? "bg-red-200" : "bg-slate-200"
+                }`}
+              >
+                {m.content}
+              </div>
             </div>
           ))
         : null}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Chat from "./components/chat";
 import { upload } from "./upload";
+import Image from "next/image";
 
 export default function Home() {
   const [active, setActive] = useState(false);
@@ -31,6 +32,16 @@ export default function Home() {
         </form>
         <div>stavb@tikalk.com</div>
       </div>
+      <div className="text-center text-2xl font-bold mt-8">Hire Power</div>
+      <div className="flex justify-center mt-4">
+        <Image
+          src="/images/HirePower.png"
+          alt="Hire Power"
+          width={200}
+          height={200}
+        />
+      </div>
+
       <Chat />
     </div>
   );
