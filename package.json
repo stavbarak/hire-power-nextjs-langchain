@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@cyber2024/pdf-parse-fixed": "^1.2.5",
-    "@langchain/community": "^1.0.7",
+    "@langchain/community": "^1.1.18",
     "@langchain/openai": "^0.0.20",
     "@next/bundle-analyzer": "^13.4.19",
     "@types/node": "20.4.5",
